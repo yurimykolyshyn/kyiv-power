@@ -174,11 +174,12 @@ FIGS.push({
   hint: 'Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає · тримай навантаження нижче генерації',
   aria: 'Ізометрична карта Києва з десятьма районами, у кожному свій житловий будинок. Праворуч трансформатор з десятьма рубильниками: вимкнений рубильник знеструмлює свій район.',
   css: `
+    [data-fig="kyiv"] { --water:#16436F; --water-edge:#3B7FC4; --water-hi:#6FA8E0; }
     [data-fig="kyiv"] .dist { fill: var(--deck); stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; cursor: pointer; }
     [data-fig="kyiv"] .tint { fill: var(--accent); opacity: 0; pointer-events: none; transition: opacity .35s; }
     [data-fig="kyiv"] .tint.on { opacity: .07; }
-    [data-fig="kyiv"] .river { fill: var(--recess); stroke: var(--detail); stroke-width: 1; vector-effect: non-scaling-stroke; }
-    [data-fig="kyiv"] .wave { fill: none; stroke: var(--detail); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 4; }
+    [data-fig="kyiv"] .river { fill: var(--water); stroke: var(--water-edge); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    [data-fig="kyiv"] .wave { fill: none; stroke: var(--water-hi); opacity: .7; stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 3 4; }
     [data-fig="kyiv"] .win { fill: var(--glass); stroke: var(--detail); stroke-width: .6; vector-effect: non-scaling-stroke; transition: fill .25s; }
     [data-fig="kyiv"] .bld { cursor: pointer; }
     [data-fig="kyiv"] .bld.on .win:not(.nl) { fill: var(--accent); stroke: var(--accent-hi); }
