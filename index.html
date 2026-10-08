@@ -134,7 +134,7 @@
   .layout { grid-template-columns:minmax(0,1fr) !important; grid-template-areas:"fig" !important; }
   body { padding-bottom:16px; }
   /* fit the whole plate in one screen: the svg letterboxes inside a height-capped holder */
-  #stageHolder { aspect-ratio:auto; width:100%; height:clamp(220px, calc(100dvh - 200px), 62vw); }
+  #stageHolder { aspect-ratio:auto; width:100%; height:clamp(220px, calc(100dvh - 216px), 62vw); }
 </style>
 </head>
 <body>
@@ -171,7 +171,7 @@
 <script>
 FIGS.push({
   id: 'kyiv', name: 'Київ · енергосистема',
-  hint: 'Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає · тримай навантаження нижче генерації',
+  hint: 'Мета: тримай навантаження нижче генерації · рубильники 1–0 або клік · ←→ вибір, пробіл перемикає',
   aria: 'Ізометрична карта Києва з десятьма районами, у кожному свій житловий будинок. Праворуч трансформатор з десятьма рубильниками: вимкнений рубильник знеструмлює свій район.',
   css: `
     [data-fig="kyiv"] { --water:#16436F; --water-edge:#3B7FC4; --water-hi:#6FA8E0; --alarm:#E5484D; --alarm-hi:#FF9A9C; }
@@ -352,6 +352,22 @@ FIGS.push({
     note.textContent = 'Генерація і споживання — умовні ігрові цифри · розподіл між районами за населенням (2016)';
     note.style.cssText = 'color:var(--ink);text-transform:none;letter-spacing:.03em;font-size:12px';
     document.querySelector('.top')?.append(note);
+    // the goal is the point of the game: lift it out of the hint into a lit chip that turns red on overload
+    const goalCss = document.createElement('style');
+    goalCss.textContent = `
+      .kyiv-goal { display:inline-flex; align-items:center; gap:8px; margin-right:14px; padding:4px 12px; border-radius:999px;
+        color:var(--accent-hi); border:1px solid var(--accent); background:var(--accent-dim); box-shadow:0 0 14px var(--accent-dim);
+        letter-spacing:.12em; transition:color .2s, border-color .2s, background .2s; }
+      .kyiv-goal::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); }
+      .kyiv-goal.warn { color:#FF9A9C; border-color:#E5484D; background:rgba(229,72,77,.14); box-shadow:0 0 16px rgba(229,72,77,.35);
+        animation:kyiv-goal-blink .6s steps(2) infinite; }
+      .kyiv-goal.warn::before { background:#E5484D; box-shadow:0 0 8px #E5484D; }
+      @keyframes kyiv-goal-blink { 50% { opacity:.55; } }
+      #hint { display:flex; flex-wrap:wrap; align-items:center; gap:6px 0; }`;
+    document.head.append(goalCss);
+    const hintEl = document.getElementById('hint');
+    if (hintEl) hintEl.innerHTML = '<span class="kyiv-goal" id="kyiv-goal">Мета: тримай навантаження нижче генерації</span><span>Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає</span>';
+    const goalEl = document.getElementById('kyiv-goal');
     const $ = id => stage.querySelector('#' + id);
     const R = D.map((d, i) => ({ sw: $('kyiv-s'+i), c: $('kyiv-c'+i), bl: $('kyiv-bl'+i), m: $('kyiv-m'+i), b: $('kyiv-b'+i), t: $('kyiv-t'+i), n: $('kyiv-n'+i) }));
     const loadEl = $('kyiv-load'), capEl = $('kyiv-cap'), warn = $('kyiv-warn'), feed = $('kyiv-feed'), feedp = $('kyiv-feedp');
@@ -374,7 +390,7 @@ FIGS.push({
       loadEl.setAttribute('width', (50 * L / MAXMW).toFixed(2));
       capEl.setAttribute('x', (5 + 50 * st.cap / MAXMW).toFixed(2));
       const over = L > st.cap;
-      loadEl.classList.toggle('over', over); warn.classList.toggle('hot', over); warn.classList.toggle('over', over);
+      loadEl.classList.toggle('over', over); goalEl?.classList.toggle('warn', over || !!st.alarm); warn.classList.toggle('hot', over); warn.classList.toggle('over', over);
       feed.classList.toggle('hot', any); hv.forEach(w => w.classList.toggle('hot', any));
       stage.classList.toggle('alarm', !!st.alarm);
       api.power(any);
@@ -462,7 +478,7 @@ FIGS.push({
         if (e.key === ' ' || e.key === 'Enter') { toggle(st.sel); return true; }
         return false;
       },
-      unmount() { note.remove(); },
+      unmount() { note.remove(); goalCss.remove(); },
       demo() { api.after(400, () => toggle(4)); api.after(900, () => toggle(7)); },
     };
   },
