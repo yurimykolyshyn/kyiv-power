@@ -174,7 +174,11 @@ FIGS.push({
   hint: 'Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає · тримай навантаження нижче генерації',
   aria: 'Ізометрична карта Києва з десятьма районами, у кожному свій житловий будинок. Праворуч трансформатор з десятьма рубильниками: вимкнений рубильник знеструмлює свій район.',
   css: `
-    [data-fig="kyiv"] { --water:#16436F; --water-edge:#3B7FC4; --water-hi:#6FA8E0; }
+    [data-fig="kyiv"] { --water:#16436F; --water-edge:#3B7FC4; --water-hi:#6FA8E0; --alarm:#E5484D; --alarm-hi:#FF9A9C; }
+    [data-fig="kyiv"].alarm .blade { fill: var(--alarm); stroke: var(--alarm-hi); }
+    [data-fig="kyiv"].alarm .bladeg { filter: url(#glow); animation: kyiv-blink .6s steps(2) infinite; }
+    [data-fig="kyiv"].alarm .sw .led, [data-fig="kyiv"].alarm #kyiv-warn { fill: var(--alarm); }
+    [data-fig="kyiv"].alarm .sw > rect.recess { stroke: var(--alarm); }
     [data-fig="kyiv"] .dist { fill: var(--deck); stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; cursor: pointer; }
     [data-fig="kyiv"] .tint { fill: var(--accent); opacity: 0; pointer-events: none; transition: opacity .35s; }
     [data-fig="kyiv"] .tint.on { opacity: .07; }
@@ -365,12 +369,13 @@ FIGS.push({
       const over = L > st.cap;
       loadEl.classList.toggle('over', over); warn.classList.toggle('hot', over); warn.classList.toggle('over', over);
       feed.classList.toggle('hot', any); hv.forEach(w => w.classList.toggle('hot', any));
+      stage.classList.toggle('alarm', !!st.alarm);
       api.power(any);
     }
     function readout() {
       const L = load(), n = st.on.filter(Boolean).length, pct = st.t > 0 ? Math.round(100 * st.litTime / st.t) : 100;
       let s;
-      if (st.tripped > 0) s = 'аварія · захист вимкнув усі лінії';
+      if (st.alarm) s = 'аварія · захист вимкнув усі лінії · увімкни рубильник';
       else if (L > st.cap) s = `перевантаження ${L} / ${Math.round(st.cap)} МВт · ${Math.ceil(5 - st.over)} с до аварії`;
       else s = `${L} / ${Math.round(st.cap)} МВт · ${n}/10 районів · світло ${pct}%`;
       if (s !== st.lastMsg) { api.readout(s); st.lastMsg = s; }
@@ -412,7 +417,7 @@ FIGS.push({
       } catch (e) {}
     }
     function toggle(i) {
-      st.on[i] = !st.on[i]; st.sel = i;
+      st.on[i] = !st.on[i]; st.sel = i; st.alarm = false;
       snd(st.on[i] ? 'on' : 'off');
       if (st.on[i]) api.replay(feedp, 'go');
       render(); readout();
@@ -429,7 +434,7 @@ FIGS.push({
       st.cap += (st.capTo - st.cap) * Math.min(1, dt * 0.8);
       if (load() > st.cap) {
         st.over += dt;
-        if (st.over >= 5) { st.on = st.on.map(() => false); st.over = 0; st.tripped = 3; snd('trip'); }
+        if (st.over >= 5) { st.on = st.on.map(() => false); st.over = 0; st.tripped = 3; st.alarm = true; snd('trip'); }
       } else st.over = Math.max(0, st.over - dt * 2);
       render(); readout();
     });
