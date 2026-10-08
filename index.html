@@ -191,6 +191,7 @@ FIGS.push({
     [data-fig="kyiv"] .dname { fill: var(--ink); font-family: var(--mono); font-size: 6.5px; text-anchor: middle; pointer-events: none; transition: fill .3s;
       paint-order: stroke; stroke: var(--panel); stroke-width: 2.6px; stroke-linejoin: round; }
     [data-fig="kyiv"] .dname.on { fill: var(--ink-hi); }
+    @media (max-width: 700px) { [data-fig="kyiv"] .dname { font-size: 10px; stroke-width: 3.4px; } }
     [data-fig="kyiv"] .sw { cursor: pointer; }
     [data-fig="kyiv"] .blade { fill: var(--detail); stroke: var(--line); stroke-width: .8; vector-effect: non-scaling-stroke; }
     [data-fig="kyiv"] .sw.on .blade { fill: var(--accent); stroke: var(--accent-hi); }
@@ -224,12 +225,20 @@ FIGS.push({
     const SLAB = [[-6,-10],[246,-10],[246,246],[-6,246]];
     const anchors = D.map(d => M(...d.a));
 
+    // the scene is drawn for one of two layouts: wide (yard to the right) or phone portrait (yard below the map)
+    const mq = window.matchMedia('(max-width: 700px)');
+    let R, loadEl, capEl, warn, feed, feedp, hv;
+    function draw(mobile) {
+    const SH = mobile ? [-30, 300] : [0, 0];
+    const sh = ([x, y, z]) => [x + SH[0], y + SH[1], z];
     const K = api.iso.frame([
       ...SLAB.map(([u, v]) => [...M(u, v), -8]), ...SLAB.map(([u, v]) => [...M(u, v), 0]),
-      [292,16,-8],[378,16,-8],[292,90,-8],[378,90,-8],[300,60,100],[360,60,100],
+      ...[[292,16,-8],[378,16,-8],[292,90,-8],[378,90,-8],[300,60,100],[360,60,100]].map(sh),
       [...anchors[4], 128], [...anchors[0], 96],
-    ], 0.04, 16 / 9);   // wide scene: a wide frame fills the screen-height-capped plate
+    ], 0.03, mobile ? 1.05 : 16 / 9);   // frame shape follows the layout so the plate is filled
     const { P, TOP, FRONT, SIDE, rect, box, path } = K;
+    const [shx, shy] = K.D(SH[0], SH[1], 0), shT = `translate(${shx} ${shy})`;
+    const FEED = mobile ? [[285,360,0.4],[262,300,0.4],[222,246,0.4]] : [[300,80,0.4],[272,96,0.4],[246,112,0.4]];
 
     // polygon helpers in map coords
     const poly = (pts, z, cls, extra = '') => `<path class="${cls}" ${extra} d="${'M' + pts.map(([u, v]) => P(...M(u, v), z).map(n => n.toFixed(2)).join(' ')).join('L')}Z"/>`;
@@ -309,10 +318,11 @@ FIGS.push({
     });
 
     // transformer yard: pad, tank with insulators, switch cabinet, feeder to the city
-    svg += box(292,16,-8, 86,74,8, 4);
-    svg += `<path id="kyiv-feed-u" class="wire-under" d="${path([[300,80,0.4],[272,96,0.4],[246,112,0.4]])}"/>`;
-    svg += `<path id="kyiv-feed" class="wire" d="${path([[300,80,0.4],[272,96,0.4],[246,112,0.4]])}"/>`;
-    svg += `<path id="kyiv-feedp" class="pulse" pathLength="1000" d="${path([[300,80,0.4],[272,96,0.4],[246,112,0.4]])}"/>`;
+    svg += `<g transform="${shT}">${box(292,16,-8, 86,74,8, 4)}</g>`;
+    svg += `<path id="kyiv-feed-u" class="wire-under" d="${path(FEED)}"/>`;
+    svg += `<path id="kyiv-feed" class="wire" d="${path(FEED)}"/>`;
+    svg += `<path id="kyiv-feedp" class="pulse" pathLength="1000" d="${path(FEED)}"/>`;
+    svg += `<g transform="${shT}">`;
     svg += box(334,22,0, 36,30,44);
     svg += `<g transform="${SIDE(370,52,44)}">${api.iso.slits(3,27,3, 4,40)}</g>`;
     [0,1,2].forEach(j => {
@@ -343,9 +353,17 @@ FIGS.push({
         <rect class="selm" id="kyiv-m${i}" x="${cu-5.6}" y="${v0-1.2}" width="11.2" height="35.6" rx="1.5"/>
       </g>`;
     });
-    svg += cab + `<rect id="kyiv-warn" class="led" x="50" y="15.5" width="6" height="2" rx="1"/></g>`;
+    svg += cab + `<rect id="kyiv-warn" class="led" x="50" y="15.5" width="6" height="2" rx="1"/></g></g>`;
 
     stage.setAttribute('viewBox', K.viewBox); stage.innerHTML = svg;
+    const $ = id => stage.querySelector('#' + id);
+    R = D.map((d, i) => ({ sw: $('kyiv-s'+i), c: $('kyiv-c'+i), bl: $('kyiv-bl'+i), m: $('kyiv-m'+i), b: $('kyiv-b'+i), t: $('kyiv-t'+i), n: $('kyiv-n'+i) }));
+    loadEl = $('kyiv-load'); capEl = $('kyiv-cap'); warn = $('kyiv-warn'); feed = $('kyiv-feed'); feedp = $('kyiv-feedp');
+    hv = [0,1,2].map(j => $('kyiv-hv'+j));
+    }
+    draw(mq.matches);
+    const onMq = e => { draw(e.matches); render(); };
+    mq.addEventListener('change', onMq);
     // disclaimer in the page header (free space there, so the plate still fits one screen)
     const note = document.createElement('span');
     note.className = 'kyiv-note';
@@ -363,15 +381,37 @@ FIGS.push({
         animation:kyiv-goal-blink .6s steps(2) infinite; }
       .kyiv-goal.warn::before { background:#E5484D; box-shadow:0 0 8px #E5484D; }
       @keyframes kyiv-goal-blink { 50% { opacity:.55; } }
-      #hint { display:flex; flex-wrap:wrap; align-items:center; gap:6px 0; }`;
+      #hint { display:flex; flex-wrap:wrap; align-items:center; gap:6px 0; }
+      .kyiv-pad { display:none; }
+      .kyiv-touch { display:none; }
+      @media (max-width: 700px) {
+        #stageHolder { height:clamp(240px, calc(100dvh - 330px), calc(100vw - 30px)); }
+        figure { padding:14px 12px; }
+        .top { gap:4px 12px; }
+        .kyiv-note { font-size:10.5px !important; }
+        .kyiv-goal { margin-right:0; font-size:11px; letter-spacing:.08em; padding:4px 10px; }
+        .kyiv-keys { display:none; }
+        .kyiv-touch { display:inline; font-size:11px; }
+        .kyiv-pad { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin:4px 0 2px; }
+        .kyiv-pad button { font:inherit; font-size:9.5px; letter-spacing:.02em; color:var(--ink); background:var(--bg); border:1px solid var(--edge);
+          border-radius:10px; padding:8px 2px 7px; display:grid; justify-items:center; gap:5px; cursor:pointer; touch-action:manipulation; min-height:44px; }
+        .kyiv-pad button i { width:18px; height:4px; border-radius:2px; background:var(--detail); }
+        .kyiv-pad button.on { color:var(--accent-hi); border-color:var(--accent); }
+        .kyiv-pad button.on i { background:var(--accent); box-shadow:0 0 8px var(--accent); }
+        .kyiv-pad.alarm button { color:#FF9A9C; border-color:#E5484D; animation:kyiv-goal-blink .6s steps(2) infinite; }
+        .kyiv-pad.alarm button i { background:#E5484D; box-shadow:0 0 8px #E5484D; }
+      }`;
     document.head.append(goalCss);
     const hintEl = document.getElementById('hint');
-    if (hintEl) hintEl.innerHTML = '<span class="kyiv-goal" id="kyiv-goal">Мета: тримай навантаження нижче генерації</span><span>Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає</span>';
+    if (hintEl) hintEl.innerHTML = '<span class="kyiv-goal" id="kyiv-goal">Мета: тримай навантаження нижче генерації</span><span class="kyiv-keys">Рубильники 1–0 або клік · ←→ вибір, пробіл перемикає</span><span class="kyiv-touch">Торкайся рубильників або будинків</span>';
     const goalEl = document.getElementById('kyiv-goal');
-    const $ = id => stage.querySelector('#' + id);
-    const R = D.map((d, i) => ({ sw: $('kyiv-s'+i), c: $('kyiv-c'+i), bl: $('kyiv-bl'+i), m: $('kyiv-m'+i), b: $('kyiv-b'+i), t: $('kyiv-t'+i), n: $('kyiv-n'+i) }));
-    const loadEl = $('kyiv-load'), capEl = $('kyiv-cap'), warn = $('kyiv-warn'), feed = $('kyiv-feed'), feedp = $('kyiv-feedp');
-    const hv = [0,1,2].map(j => $('kyiv-hv'+j));
+    // phones: the cabinet switches are too small to tap, so mirror them as a row of touch buttons
+    const pad = document.createElement('div');
+    pad.className = 'kyiv-pad';
+    pad.innerHTML = D.map((d, i) => `<button type="button" data-k="${i}"><i></i>${d.s}</button>`).join('');
+    pad.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) toggle(+b.dataset.k); });
+    stage.parentElement.after(pad);
+    const padBtns = [...pad.querySelectorAll('button')];
 
     const MAXMW = 1400, TOTAL = D.reduce((s, d) => s + d.mw, 0);
     const st = { on: D.map(() => true), sel: 0, cap: 1300, capTo: 1300, over: 0, t: 0, litTime: 0, nextCap: 12, tripped: 0, last: 0 };
@@ -384,6 +424,7 @@ FIGS.push({
         r.sw.classList.toggle('on', on); r.c.classList.toggle('hot', on);
         r.b.classList.toggle('on', on); r.t.classList.toggle('on', on); r.n.classList.toggle('on', on);
         r.m.classList.toggle('hot', st.sel === i);
+        padBtns[i].classList.toggle('on', on);
         const [hx, hy] = r.bl.dataset.h.split(' ');
         r.bl.setAttribute('transform', on ? '' : `rotate(180 ${hx} ${hy})`);
       });
@@ -392,7 +433,7 @@ FIGS.push({
       const over = L > st.cap;
       loadEl.classList.toggle('over', over); goalEl?.classList.toggle('warn', over || !!st.alarm); warn.classList.toggle('hot', over); warn.classList.toggle('over', over);
       feed.classList.toggle('hot', any); hv.forEach(w => w.classList.toggle('hot', any));
-      stage.classList.toggle('alarm', !!st.alarm);
+      stage.classList.toggle('alarm', !!st.alarm); pad.classList.toggle('alarm', !!st.alarm);
       api.power(any);
     }
     function readout() {
@@ -478,7 +519,7 @@ FIGS.push({
         if (e.key === ' ' || e.key === 'Enter') { toggle(st.sel); return true; }
         return false;
       },
-      unmount() { note.remove(); goalCss.remove(); },
+      unmount() { note.remove(); goalCss.remove(); pad.remove(); mq.removeEventListener('change', onMq); },
       demo() { api.after(400, () => toggle(4)); api.after(900, () => toggle(7)); },
     };
   },
