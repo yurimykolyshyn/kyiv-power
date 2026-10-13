@@ -628,9 +628,11 @@ FIGS.push({
 
     // dancers (billboards), back to front
     const DANCERS = [[205,140],[150,150],[235,175],[175,190],[132,210],[214,222]];
+    svg += '<g id="disco-crowd">';
     DANCERS.forEach(([x, y], i) => {
       svg += `<g id="disco-d${i}"><g transform="scale(1.5)"><path class="person" id="disco-dp${i}" d=""/><circle class="head" id="disco-dh${i}" cx="0" cy="-33" r="4.2"/></g></g>`;
     });
+    svg += '</g>';
 
     // truss with four PAR cans, then the mirror ball on its wire
     svg += box(6,56,168, 284,8,6);
@@ -662,7 +664,14 @@ FIGS.push({
     const plat = [0,1].map(k => $('disco-plat' + k)), fader = [0,1,2,3].map(k => $('disco-fd' + k));
     const vu = [0,1,2].map(k => $('disco-vu' + k)), cones = [...stage.querySelectorAll('.sp-w')];
     const beams = [0,1,2,3].map(k => $('disco-beam' + k)), pools = [0,1,2,3].map(k => $('disco-pool' + k)), lens = [0,1,2,3].map(k => $('disco-lens' + k));
-    const dancers = DANCERS.map((d, i) => ({ g: $('disco-d' + i), p: $('disco-dp' + i), h: $('disco-dh' + i), w: d, base: P(d[0], d[1], 4), ph: i % 3 }));
+    // dancers live on the tile grid (rows 2–6, so nobody blocks the booth) and hop between tiles
+    const tileC = (i, j) => [FX + i * TS + TS / 2, FY + j * TS + TS / 2];
+    const dancers = DANCERS.map(([x, y], i) => {
+      const tile = [Math.min(N - 1, Math.floor((x - FX) / TS)), Math.max(2, Math.min(N - 1, Math.floor((y - FY) / TS)))];
+      return { g: $('disco-d' + i), p: $('disco-dp' + i), h: $('disco-dh' + i), tile, w: tileC(...tile), hop: 0, mv: null, lastStep: -9, col: 1, ph: i % 3 };
+    });
+    const crowd = $('disco-crowd'), flashT = {};
+    let crowdOrder = '';
     const djHead = $('disco-djh');
     // a head takes the colour of the light that hits it (nearest beam pool), brightness follows that beam
     const paintHead = (el, col, a) => {
@@ -859,6 +868,29 @@ FIGS.push({
       const env = playing ? Math.exp(-(st.t - st.beatT) * 5) : 0;
       const L = Math.min(1, st.low), Mi = Math.min(1, st.mid), H = Math.min(1, st.high);
 
+      // steps: every 2nd beat one or two rested dancers hop to a free neighbouring tile
+      if (playing && st.beats !== st.stepBeat) {
+        st.stepBeat = st.beats;
+        if (st.beats % 2 === 0) {
+          const idle = dancers.filter(d => !d.mv && st.beats - d.lastStep >= 4).sort(() => Math.random() - 0.5);
+          idle.slice(0, Math.random() < 0.35 ? 2 : 1).forEach(d => {
+            const taken = new Set(dancers.map(o => (o.mv ? o.to : o.tile).join(',')));
+            const opts = [[1,0],[-1,0],[0,1],[0,-1]].map(([a, b]) => [d.tile[0] + a, d.tile[1] + b])
+              .filter(([i, j]) => i >= 0 && i < N && j >= 2 && j < N && !taken.has(i + ',' + j));
+            if (!opts.length) return;
+            d.to = opts[Math.floor(Math.random() * opts.length)];
+            d.mv = { t0: st.t, from: d.w.slice(), dur: 0.32 }; d.lastStep = st.beats;
+          });
+        }
+      }
+      dancers.forEach(d => {
+        if (!d.mv) return;
+        const p = Math.min(1, (st.t - d.mv.t0) / d.mv.dur), e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2, T = tileC(...d.to);
+        d.w = [d.mv.from[0] + (T[0] - d.mv.from[0]) * e, d.mv.from[1] + (T[1] - d.mv.from[1]) * e];
+        d.hop = Math.sin(Math.PI * p) * 7;
+        if (p >= 1) { d.tile = d.to; d.mv = null; d.hop = 0; flashT[d.tile.join(',')] = { t: st.t, col: d.col }; }
+      });
+
       // floor tiles: a new pattern every 8 beats, flashing on each beat
       const pat = Math.floor(st.beats / 8) % 4, bt = st.beats;
       tilesEl.forEach(({ i, j, el }) => {
@@ -868,7 +900,9 @@ FIGS.push({
         else if (pat === 1) { on = ring === bt % 4; col = 1 + (ring % 3); }
         else if (pat === 2) { on = (i + j) % 4 === bt % 4; col = 1 + ((i + j) % 3); }
         else { on = ((i * 7 + j * 13 + bt * 5) % 5) < 2; col = 1 + ((i * 3 + j + bt) % 3); }
-        const o = !playing || !lightOn ? (lightOn ? 0.05 + 0.04 * Math.sin(st.t * 1.5 + i + j) : 0) : on ? 0.3 + 0.7 * Math.max(env, L * 0.6) : 0.05;
+        let o = !playing || !lightOn ? (lightOn ? 0.05 + 0.04 * Math.sin(st.t * 1.5 + i + j) : 0) : on ? 0.3 + 0.7 * Math.max(env, L * 0.6) : 0.05;
+        const fl = flashT[i + ',' + j];   // the tile a dancer just landed on lights up in that dancer's colour
+        if (fl && lightOn) { const f = Math.exp(-(st.t - fl.t) * 3); if (f > 0.03) { o = Math.max(o, 0.95 * f); col = fl.col; } else delete flashT[i + ',' + j]; }
         el.setAttribute('opacity', o.toFixed(3));
         el.setAttribute('class', 'tile k' + col);
       });
@@ -914,6 +948,7 @@ FIGS.push({
       dancers.forEach(d => {
         let kb = 0, db = 1e9;
         spots.forEach(([sx, sy], k) => { const v = Math.hypot(sx - d.w[0], sy - d.w[1]); if (v < db) { db = v; kb = k; } });
+        d.col = COLS[kb];
         paintHead(d.h, COLS[kb], amps[kb] * Math.max(0.55, 1 - db / 90));
       });
       paintHead(djHead, 1 + (st.beats % 3), playing && lightOn ? 0.4 + 0.6 * env : 0);
@@ -927,8 +962,12 @@ FIGS.push({
       dancers.forEach((d, i) => {
         const pose = POSES[playing ? (st.beats + d.ph * 2 + i) % POSES.length : 2], [[hlx, hly], [hrx, hry]] = pose;
         d.p.setAttribute('d', `M-4 0 L0 -14 L4 0 M0 -14 L0 -28 M${hlx} ${hly} L-2.5 -26 L2.5 -26 L${hrx} ${hry}`);
-        d.g.setAttribute('transform', `translate(${f2(d.base[0])} ${f2(d.base[1] - (playing ? bob * (i % 2 ? 1 : 0.6) : 0))})`);
+        const [gx, gy] = P(d.w[0], d.w[1], 4 + d.hop);
+        d.g.setAttribute('transform', `translate(${f2(gx)} ${f2(gy - (playing && !d.mv ? bob * (i % 2 ? 1 : 0.6) : 0))})`);
       });
+      const sorted = dancers.slice().sort((a, b) => (a.w[0] + a.w[1]) - (b.w[0] + b.w[1]));   // paint order = depth
+      const key = sorted.map(d => d.g.id).join();
+      if (key !== crowdOrder) { sorted.forEach(d => crowd.appendChild(d.g)); crowdOrder = key; }
       dj.setAttribute('transform', `translate(${f2(djx)} ${f2(djy - (playing ? bob * 0.6 : 0))})`);
       plat.forEach((p, k) => p.setAttribute('transform', `rotate(${f2((playing ? st.t * 200 : 0) * (k ? 1 : 1.03))} ${k ? 128 : 32} 12)`));
       fader.forEach((f, k) => f.setAttribute('y', f2(12 - [L, Mi, H, (L + H) / 2][k] * 4)));
