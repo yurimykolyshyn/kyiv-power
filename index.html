@@ -412,9 +412,10 @@ FIGS.push({
     // phones: the cabinet switches are too small to tap, so mirror them as a row of touch buttons
     const pad = document.createElement('div');
     pad.className = 'kyiv-pad';
-    pad.innerHTML = D.map((d, i) => `<button type="button" data-k="${i}"><i></i>${d.s}</button>`).join('');
+    pad.innerHTML = D.map((d, i) => `<button type="button" tabindex="-1" data-k="${i}"><i></i>${d.s}</button>`).join('');
     pad.addEventListener('click', e => { const b = e.target.closest('button[data-k]'); if (b) toggle(+b.dataset.k); });
     stage.parentElement.after(pad);
+    pad.addEventListener('mousedown', e => e.preventDefault());   // pad buttons never take keyboard focus
     const padBtns = [...pad.querySelectorAll('button')];
 
     const MAXMW = 1400, TOTAL = D.reduce((s, d) => s + d.mw, 0);
@@ -515,7 +516,15 @@ FIGS.push({
     });
     render(); readout();
 
-    return {
+    // game keys are caught first (capture) so a focused button can never swallow space / Enter / arrows
+    const GAME_KEYS = new Set(['0','1','2','3','4','5','6','7','8','9',' ','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown']);
+    const onKey = e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || !GAME_KEYS.has(e.key) || !stage.isConnected) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.type === 'keydown') handle.key(e); else if (handle.keyup) handle.keyup(e);
+    };
+    window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', onKey, true);
+    const handle = {
       key(e) {
         if (/^[0-9]$/.test(e.key)) { toggle((+e.key + 9) % 10); return true; }
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { st.sel = (st.sel + 1) % 10; render(); return true; }
@@ -523,9 +532,10 @@ FIGS.push({
         if (e.key === ' ' || e.key === 'Enter') { toggle(st.sel); return true; }
         return false;
       },
-      unmount() { note.remove(); goalCss.remove(); pad.remove(); mq.removeEventListener('change', onMq); },
+      unmount() { window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true); note.remove(); goalCss.remove(); pad.remove(); mq.removeEventListener('change', onMq); },
       demo() { api.after(400, () => toggle(4)); api.after(900, () => toggle(7)); },
     };
+    return handle;
   },
 });
 
@@ -704,8 +714,9 @@ FIGS.push({
     const bar = document.createElement('div');
     bar.className = 'disco-pad';
     const LABELS = { t0: '1 · Дискотека 77', t1: '2 · Нічний Київ', t2: '3 · Фанк-сода', t3: '4 · Неоновий Дніпро', stop: '■ Стоп', light: 'Світло' };
-    bar.innerHTML = PADS.map(p => `<button type="button" data-pad="${p.k}"><i></i><span>${LABELS[p.k]}</span></button>`).join('');
+    bar.innerHTML = PADS.map(p => `<button type="button" tabindex="-1" data-pad="${p.k}"><i></i><span>${LABELS[p.k]}</span></button>`).join('');
     stage.parentElement.after(bar);
+    bar.addEventListener('mousedown', e => e.preventDefault());   // pad buttons never take keyboard focus
     const btns = Object.fromEntries([...bar.querySelectorAll('button')].map(b => [b.dataset.pad, b]));
 
     // ---------- music: four original patterns synthesised with WebAudio ----------
@@ -977,7 +988,15 @@ FIGS.push({
     });
 
     ui_(); readout();
-    return {
+    // game keys are caught first (capture) so a focused button can never swallow space / Enter / arrows
+    const GAME_KEYS = new Set(['1','2','3','4',' ','Enter','l','L','д','Д','ArrowLeft','ArrowRight']);
+    const onKey = e => {
+      if (e.metaKey || e.ctrlKey || e.altKey || !GAME_KEYS.has(e.key) || !stage.isConnected) return;
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (e.type === 'keydown') handle.key(e); else if (handle.keyup) handle.keyup(e);
+    };
+    window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', onKey, true);
+    const handle = {
       key(e) {
         if (e.key >= '1' && e.key <= '4') { pad('t' + (+e.key - 1)); return true; }
         if (e.key === ' ' || e.key === 'Enter') { pad('stop'); return true; }
@@ -986,9 +1005,10 @@ FIGS.push({
         if (e.key === 'ArrowLeft') { play(((st.track < 0 ? st.lastTrack : st.track) + 3) % 4); return true; }
         return false;
       },
-      unmount() { stop(); bar.remove(); ui.remove(); },
+      unmount() { window.removeEventListener('keydown', onKey, true); window.removeEventListener('keyup', onKey, true); stop(); bar.remove(); ui.remove(); },
       demo() {},
     };
+    return handle;
   },
 });
 
