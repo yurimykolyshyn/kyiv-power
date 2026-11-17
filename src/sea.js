@@ -39,10 +39,10 @@ FIGS.push({
     const N = 10, C = 10, COLS = 'АБВГДЕЖЗИК';
     const MOB = window.matchMedia('(max-width: 700px)').matches;
     // two boards: side by side on wide screens, stacked on phones (the enemy's waters first)
-    const ORG = MOB ? { me: [150, 150], foe: [0, 0] } : { me: [0, 0], foe: [134, -134] };
+    const ORG = MOB ? { me: [150, 150], foe: [0, 0] } : { me: [0, 0], foe: [124, -124] };
     const pts = [];
     for (const [ox, oy] of Object.values(ORG)) pts.push([ox - 10, oy - 10, -6], [ox + 106, oy - 10, -6], [ox - 10, oy + 106, -6], [ox + 106, oy + 106, -6], [ox, oy, 30]);
-    const K = api.iso.frame(pts, 0.025, MOB ? 0.72 : 2.35);   // frame shaped like the two boards, so they fill the plate
+    const K = api.iso.frame(pts, 0.015, MOB ? 0.72 : 2.3);   // frame shaped like the two boards, so they fill the plate
     const { P, TOP, FRONT, SIDE, box, path } = K;
     const f2 = n => n.toFixed(2);
     const vb = K.viewBox.split(' ').map(Number);

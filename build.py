@@ -26,6 +26,7 @@ for a, b in [('<title>Iso Figures</title>', f'<title>{title}</title>'), ('Iso fi
 s = s.replace('</style>', '''  .top .swatches, .top .arrows, .layout > nav { display:none !important; }
   .layout { grid-template-columns:minmax(0,1fr) !important; grid-template-areas:"fig" !important; }
   body { padding-bottom:16px; }
+  .wrap { max-width:1480px !important; }   /* use the width of laptop screens */
   /* fit the whole plate in one screen: the svg letterboxes inside a height-capped holder */
   #stageHolder { aspect-ratio:auto; width:100%; height:clamp(220px, calc(100dvh - 216px - var(--navh, 0px)), 62vw); }
 </style>''', 1)
