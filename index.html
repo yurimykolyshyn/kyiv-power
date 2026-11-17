@@ -1769,6 +1769,22 @@ FIGS.push({
     [data-fig="sea"] .boom { fill: var(--accent-hi); }
     [data-fig="sea"] .hitcell { fill: rgba(229,72,77,.32); stroke: var(--danger); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
     [data-fig="sea"] .hitx { fill: none; stroke: var(--accent-hi); stroke-width: 1.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .fish { fill: var(--accent); stroke: var(--accent-hi); stroke-width: .8; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .fish.alt { fill: var(--water-hi); stroke: var(--ink-hi); }
+    [data-fig="sea"] .eye { fill: var(--panel); }
+    [data-fig="sea"] .ripple { fill: none; stroke: var(--water-hi); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .spark { fill: var(--accent-hi); }
+    [data-fig="sea"] .bub { fill: rgba(111,168,224,.12); stroke: var(--water-hi); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .bubhi { fill: var(--ink-hi); opacity: .8; }
+    [data-fig="sea"] .drown { fill: var(--water); opacity: 0; transition: opacity 1.4s; pointer-events: none; }
+    [data-fig="sea"] .drown.on { opacity: .42; }
+    [data-fig="sea"] .banner { font-family: var(--mono); font-weight: 500; text-anchor: middle; letter-spacing: 6px; pointer-events: none;
+      paint-order: stroke; stroke: var(--panel); stroke-width: 6px; stroke-linejoin: round; }
+    [data-fig="sea"] .banner.win { fill: var(--accent); }
+    [data-fig="sea"] .banner.lose { fill: var(--water-hi); }
+    [data-fig="sea"] .banner.sub { font-size: 6.5px; letter-spacing: 2px; stroke-width: 4px; fill: var(--ink-hi); }
+    [data-fig="sea"] .pop { animation: sea-pop .7s cubic-bezier(.2,1.4,.4,1) both; transform-box: fill-box; transform-origin: center; }
+    @keyframes sea-pop { from { transform: scale(.3); opacity: 0; } }
     [data-fig="sea"] .msg { fill: var(--accent-hi); font-family: var(--mono); font-size: 13px; letter-spacing: 3px; text-anchor: middle;
       paint-order: stroke; stroke: var(--panel); stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
   `,
@@ -1812,6 +1828,7 @@ FIGS.push({
                            turn: 'me', started: false, over: '', cur: [4, 4], bridgeHit: false, last: null });
     let st = SEA_SAVE.st && !SEA_SAVE.st.over ? SEA_SAVE.st : fresh();
     if (!st.phase) Object.assign(st, { phase: 'battle', queue: [], hor: true, curMe: [0, 0] });
+    const ENDN = { fish: [], bubbles: [], ripples: [], sparks: [] };
     SEA_SAVE.st = st;
 
     // ---------- static plates ----------
@@ -1836,6 +1853,7 @@ FIGS.push({
       return `<g transform="${TOP(ORG.foe[0] + c * C, ORG.foe[1] + r * C, 0.3)}"><rect class="cellhit" data-c="${c}" data-r="${r}" width="${C}" height="${C}"/></g>`; }).join('')}
       <g id="sea-cur"><rect class="cursor" x=".8" y=".8" width="${C - 1.6}" height="${C - 1.6}" rx="1"/></g></g>`;
     svg += `<g id="sea-fx"></g><text id="sea-msg" class="msg" x="${f2(vb[2] / 2)}" y="${f2(vb[3] - 14)}"></text>`;
+    svg += `<rect id="sea-drown" class="drown" x="0" y="0" width="${vb[2]}" height="${vb[3]}"/><g id="sea-end"></g><g id="sea-banner"></g>`;
     stage.setAttribute('viewBox', K.viewBox); stage.innerHTML = svg;
     const $ = id => stage.querySelector('#' + id);
     const L = { me: $('sea-me'), foe: $('sea-foe') }, curEl = $('sea-cur'), fx = $('sea-fx'), msgEl = $('sea-msg');
@@ -1984,7 +2002,7 @@ FIGS.push({
           if (disco) { window.__discoAutoplay = true; location.hash = '#disco'; }
         });
       } else if (res === 'sunk') say(st.foe.ships[st.foe.occ[r][c]].kind === 'bridge' ? 'МІСТ ЗРУЙНОВАНО' : 'ПОТОПЛЕНО');
-      if (left('foe') === 0) { st.over = 'win'; sfx('win'); say('ПЕРЕМОГА!', 0); }
+      if (left('foe') === 0) { st.over = 'win'; sfx('win'); msgEl.textContent = ''; ending('win'); }
       else if (res === 'miss') { st.turn = 'cpu'; api.after(750, cpuTurn); }
       status();
     }
@@ -2014,11 +2032,66 @@ FIGS.push({
       sfx('shot'); sfx(res === 'miss' ? 'miss' : res === 'sunk' ? 'sunk' : 'hit');
       if (res !== 'miss') boom('me', c, r, res === 'sunk');
       drawBoard('me');
-      if (left('me') === 0) { st.over = 'lose'; sfx('lose'); say('ФЛОТ ВТРАЧЕНО', 0); }
+      if (left('me') === 0) { st.over = 'lose'; sfx('lose'); msgEl.textContent = ''; ending('lose'); }
       else if (res === 'miss') { st.turn = 'me'; drawCursor(); }
       else api.after(650, cpuTurn);
       status();
     }
+    // ---------- endings ----------
+    const NSs = 'http://www.w3.org/2000/svg', endL = () => $('sea-end');
+    const el = (html) => { const g = document.createElementNS(NSs, 'g'); g.innerHTML = html; endL().appendChild(g); return g; };
+    const waterPoint = side => { const [ox, oy] = ORG[side]; return P(ox + 4 + Math.random() * 92, oy + 4 + Math.random() * 92, 0); };
+    let endKind = '', endT = 0, spawnT = 0;
+    function ending(kind) {
+      endKind = kind; endT = 0; spawnT = 0;
+      for (const k in ENDN) ENDN[k].length = 0;
+      endL().innerHTML = ''; $('sea-banner').innerHTML = '';
+      $('sea-drown').classList.toggle('on', kind === 'lose');
+      if (!kind) return;
+      const cx = vb[2] / 2, cy = vb[3] * (MOB ? 0.47 : 0.5);
+      $('sea-banner').innerHTML = `<text class="banner ${kind} pop" x="${f2(cx)}" y="${f2(cy)}" font-size="${MOB ? 26 : 34}" filter="url(#glow)">${kind === 'win' ? 'ПЕРЕМОГА!' : 'ФЛОТ НА ДНІ'}</text>
+        <text class="banner sub" x="${f2(cx)}" y="${f2(cy + 14)}">${kind === 'win' ? 'ворожий флот і міст — на дні' : 'ворог переміг'} · пробіл — нова гра</text>`;
+    }
+    function spawnFish() {
+      const [x0, y0] = waterPoint('foe'), dir = Math.random() < 0.5 ? -1 : 1, dist = 28 + Math.random() * 30;
+      const f = { x0, y0, x1: x0 + dir * dist, y1: y0 + (Math.random() - 0.5) * 10, h: 34 + Math.random() * 36, t: 0, T: 1 + Math.random() * 0.5,
+        g: el(`<g><path class="fish${Math.random() < 0.35 ? ' alt' : ''}" d="M6 0 C3 -3.6 -3 -3.6 -5 0 C-3 3.6 3 3.6 6 0 Z M-5 0 L-9.5 -3.4 L-8.2 0 L-9.5 3.4 Z"/><circle class="eye" cx="3.2" cy="-.9" r=".75"/></g>`) };
+      ENDN.fish.push(f); ripple(x0, y0);
+    }
+    function ripple(x, y) { const g = el(`<ellipse class="ripple" cx="${f2(x)}" cy="${f2(y)}" rx="2" ry="1.1"/>`); ENDN.ripples.push({ g, t: 0 }); }
+    function spawnBubble(fromBoard) {
+      const [x, y] = fromBoard ? waterPoint('me') : [Math.random() * vb[2], vb[3] + 6], r = 1.6 + Math.random() * (fromBoard ? 3 : 6);
+      const b = { x, y, r, ph: Math.random() * 6, v: 26 + Math.random() * 40 + r * 3,
+        g: el(`<g><circle class="bub" r="${f2(r)}"/><circle class="bubhi" r="${f2(r * 0.28)}" cx="${f2(-r * 0.35)}" cy="${f2(-r * 0.35)}"/></g>`) };
+      ENDN.bubbles.push(b);
+    }
+    api.loop(() => {
+      if (!endKind) return;
+      const dt = 1 / 60; endT += dt; spawnT -= dt;
+      if (spawnT <= 0) {
+        if (endKind === 'win') { spawnFish(); if (endT < 5) spawnFish(); spawnT = endT < 5 ? 0.18 : 0.7; }
+        else { spawnBubble(false); spawnBubble(Math.random() < 0.5); spawnT = endT < 4 ? 0.06 : 0.16; }
+      }
+      ENDN.fish = ENDN.fish.filter(f => {
+        f.t += dt / f.T; const t = Math.min(1, f.t);
+        const x = f.x0 + (f.x1 - f.x0) * t, y = f.y0 + (f.y1 - f.y0) * t - 4 * f.h * t * (1 - t);
+        const dx = (f.x1 - f.x0), dy = (f.y1 - f.y0) - 4 * f.h * (1 - 2 * t), ang = Math.atan2(dy, dx) * 180 / Math.PI;
+        f.g.setAttribute('transform', `translate(${f2(x)} ${f2(y)}) rotate(${f2(ang)}) scale(1.3)`);
+        if (t >= 1) { ripple(x, y); f.g.remove(); return false; }
+        if (Math.random() < 0.08) { const s = el(`<circle class="spark" cx="${f2(x)}" cy="${f2(y)}" r=".9"/>`); ENDN.sparks.push({ g: s, t: 0 }); }
+        return true;
+      });
+      ENDN.ripples = ENDN.ripples.filter(r => { r.t += dt / 0.7; const e = r.g.firstChild; e.setAttribute('rx', f2(2 + r.t * 9)); e.setAttribute('ry', f2(1.1 + r.t * 5)); r.g.setAttribute('opacity', f2(1 - r.t)); if (r.t >= 1) { r.g.remove(); return false; } return true; });
+      ENDN.sparks = ENDN.sparks.filter(p => { p.t += dt / 0.6; p.g.setAttribute('opacity', f2(1 - p.t)); if (p.t >= 1) { p.g.remove(); return false; } return true; });
+      ENDN.bubbles = ENDN.bubbles.filter(b => {
+        b.y -= b.v * dt; b.ph += dt * 3; const x = b.x + Math.sin(b.ph) * (2 + b.r * 0.5);
+        b.g.setAttribute('transform', `translate(${f2(x)} ${f2(b.y)})`);
+        if (b.y < 24) b.g.setAttribute('opacity', f2(Math.max(0, (b.y + 10) / 34)));
+        if (b.y < -14) { b.g.remove(); return false; }
+        return true;
+      });
+    });
+
     // ---------- placement ----------
     const ghostCells = () => { const n = st.queue[0], [c, r] = st.curMe;
       const c0 = st.hor ? Math.min(c, N - n) : c, r0 = st.hor ? r : Math.min(r, N - n);
@@ -2068,7 +2141,7 @@ FIGS.push({
       if (st.phase !== 'place' || st.queue.length) return;
       st.phase = 'battle'; say('ДО БОЮ!'); sfx('place'); drawBoard('me'); drawCursor(); status();
     }
-    function newGame() { st = fresh(); SEA_SAVE.st = st; msgEl.textContent = ''; drawBoard('me'); drawBoard('foe'); drawCursor(); status(); }
+    function newGame() { ending(''); st = fresh(); SEA_SAVE.st = st; msgEl.textContent = ''; drawBoard('me'); drawBoard('foe'); drawCursor(); status(); }
 
     let busy = false;
 
