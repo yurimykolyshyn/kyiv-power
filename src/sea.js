@@ -30,6 +30,8 @@ FIGS.push({
     [data-fig="sea"] .deck { stroke: var(--ink-hi); }
     [data-fig="sea"] .arch { fill: none; stroke: var(--ink-hi); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
     [data-fig="sea"] .boom { fill: var(--accent-hi); }
+    [data-fig="sea"] .hitcell { fill: rgba(229,72,77,.32); stroke: var(--danger); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .hitx { fill: none; stroke: var(--accent-hi); stroke-width: 1.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
     [data-fig="sea"] .msg { fill: var(--accent-hi); font-family: var(--mono); font-size: 13px; letter-spacing: 3px; text-anchor: middle;
       paint-order: stroke; stroke: var(--panel); stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
   `,
@@ -103,7 +105,7 @@ FIGS.push({
     const titles = { me: $('sea-t-me'), foe: $('sea-t-foe') };
 
     // ---------- drawing one board (rebuilt after every shot; back to front by diagonal) ----------
-    const flame = (x, y, z) => { const [sx, sy] = P(x, y, z); return `<g transform="translate(${f2(sx)} ${f2(sy)})"><path class="flame2" d="M-2.6 0 Q-3 -5 0 -9 Q3 -5 2.6 0 Z"/><path class="flame" d="M-1.8 0 Q-2 -4 0 -7 Q2 -4 1.8 0 Z"/>
+    const flame = (x, y, z) => { const [sx, sy] = P(x, y, z); return `<g transform="translate(${f2(sx)} ${f2(sy)}) scale(.7)"><path class="flame2" d="M-2.6 0 Q-3 -5 0 -9 Q3 -5 2.6 0 Z"/><path class="flame" d="M-1.8 0 Q-2 -4 0 -7 Q2 -4 1.8 0 Z"/>
       <path class="smoke" d="M0 -9 Q-3 -13 1 -16 Q4 -19 1 -23"/></g>`; };
     const splash = (x, y, isNew) => `<g transform="${TOP(x, y, 0.4)}"><g class="${isNew ? 'new' : ''}"><circle class="miss" cx="5" cy="5" r="3"/><circle class="missdot" cx="5" cy="5" r=".9"/></g></g>`;
     function shipSVG(ox, oy, sh, wreck, cls = '') {
@@ -144,7 +146,12 @@ FIGS.push({
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         const v = B.shots[r][c], isNew = st.last && st.last.side === side && st.last.c === c && st.last.r === r;
         if (v === 1) items.push({ k: c + r, s: splash(ox + c * C, oy + r * C, isNew) });
-        if (v === 2) items.push({ k: c + r + 0.2, s: flame(ox + c * C + 5, oy + r * C + 5, B.occ[r][c] === 0 && side === 'foe' ? 11 : 4) });
+        if (v === 2) {
+          const sh = B.ships[B.occ[r][c]], seen = side === 'me' || sh.sunk || sh.kind === 'bridge';
+          const z = seen && sh.kind !== 'bridge' ? 3.6 : 0.4;          // a hit bridge span lies in the water
+          items.push({ k: c + r + 0.1, s: `<g transform="${TOP(ox + c * C, oy + r * C, z)}"><rect class="hitcell" x="1" y="1" width="${C - 2}" height="${C - 2}" rx="1"/><path class="hitx" d="M3 3 L7 7 M7 3 L3 7"/></g>` });
+          items.push({ k: c + r + 0.2, s: flame(ox + c * C + 5, oy + r * C + 5, z) });
+        }
       }
       if (side === 'me' && st.phase === 'place' && st.queue.length) {          // the ship you are about to place
         const g = ghostCells(), ok = canPlace(B, g);
