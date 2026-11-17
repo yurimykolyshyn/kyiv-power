@@ -1922,6 +1922,12 @@ FIGS.push({
       stage.classList.toggle('battle', st.phase === 'battle');
     }
     const left = side => st[side].ships.filter(s => !s.sunk).length;
+    function afloat(side) {
+      const alive = st[side].ships.filter(s => !s.sunk), parts = [];
+      if (alive.some(s => s.kind === 'bridge')) parts.push('міст');
+      for (const n of [4, 3, 2, 1]) { const k = alive.filter(s => s.kind !== 'bridge' && s.cells.length === n).length; if (k) parts.push(`${n}-пал ×${k}`); }
+      return parts.join(', ');
+    }
     function status() {
       const placing = st.phase === 'place';
       titles.me.classList.toggle('turn', placing || (st.turn === 'cpu' && !st.over));
@@ -1936,7 +1942,7 @@ FIGS.push({
         return;
       }
       const ro = st.over === 'win' ? 'перемога! · пробіл — нова гра' : st.over === 'lose' ? 'ворог переміг · пробіл — нова гра'
-        : `${st.turn === 'me' ? 'ваш постріл' : 'стріляє ворог…'} · ваш флот ${left('me')}/10 · ворожий ${left('foe')}/10${st.bridgeHit ? ' · міст уражено' : ''}`;
+        : `${st.turn === 'me' ? 'ваш постріл' : 'стріляє ворог…'} · знищити ще ${left('foe')}: ${afloat('foe')} · ваш флот ${left('me')}/10${st.bridgeHit ? ' · міст уражено' : ''}`;
       api.readout(ro);
     }
     function say(s, ms = 1800) { msgEl.textContent = s; if (ms) api.after(ms, () => { if (msgEl.textContent === s) msgEl.textContent = ''; }); }
@@ -2001,7 +2007,10 @@ FIGS.push({
           busy = false; say(disco ? '' : 'КРИМСЬКИЙ МІСТ УРАЖЕНО!');
           if (disco) { window.__discoAutoplay = true; location.hash = '#disco'; }
         });
-      } else if (res === 'sunk') say(st.foe.ships[st.foe.occ[r][c]].kind === 'bridge' ? 'МІСТ ЗРУЙНОВАНО' : 'ПОТОПЛЕНО');
+      } else if (res === 'sunk' && left('foe') > 0) {
+        const what = st.foe.ships[st.foe.occ[r][c]].kind === 'bridge' ? 'МІСТ ЗРУЙНОВАНО' : `${st.foe.ships[st.foe.occ[r][c]].cells.length}-ПАЛУБНИЙ ПОТОПЛЕНО`;
+        say(`${what} · ЛИШИЛОСЬ ${left('foe')}`, 2600);
+      }
       if (left('foe') === 0) { st.over = 'win'; sfx('win'); msgEl.textContent = ''; ending('win'); }
       else if (res === 'miss') { st.turn = 'cpu'; api.after(750, cpuTurn); }
       status();
@@ -2031,6 +2040,7 @@ FIGS.push({
       const [c, r] = cpuPick(), res = fire('me', c, r);
       sfx('shot'); sfx(res === 'miss' ? 'miss' : res === 'sunk' ? 'sunk' : 'hit');
       if (res !== 'miss') boom('me', c, r, res === 'sunk');
+      if (res === 'sunk' && left('me') > 0) say(`ВОРОГ ПОТОПИВ ${st.me.ships[st.me.occ[r][c]].cells.length}-ПАЛУБНИЙ · У ВАС ${left('me')}`, 2600);
       drawBoard('me');
       if (left('me') === 0) { st.over = 'lose'; sfx('lose'); msgEl.textContent = ''; ending('lose'); }
       else if (res === 'miss') { st.turn = 'me'; drawCursor(); }
