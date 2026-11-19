@@ -1785,6 +1785,10 @@ FIGS.push({
     [data-fig="sea"] .banner.sub { font-size: 6.5px; letter-spacing: 2px; stroke-width: 4px; fill: var(--ink-hi); }
     [data-fig="sea"] .pop { animation: sea-pop .7s cubic-bezier(.2,1.4,.4,1) both; transform-box: fill-box; transform-origin: center; }
     @keyframes sea-pop { from { transform: scale(.3); opacity: 0; } }
+    [data-fig="sea"] .tk { fill: var(--accent-dim); stroke: var(--ink-hi); stroke-width: .8; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .tk-br { fill: none; stroke: var(--ink-hi); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    [data-fig="sea"] .tgone { opacity: .3; }
+    [data-fig="sea"] .tcross { stroke: var(--danger); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
     [data-fig="sea"] .msg { fill: var(--accent-hi); font-family: var(--mono); font-size: 13px; letter-spacing: 3px; text-anchor: middle;
       paint-order: stroke; stroke: var(--panel); stroke-width: 5px; stroke-linejoin: round; pointer-events: none; }
   `,
@@ -1794,7 +1798,7 @@ FIGS.push({
     // two boards: side by side on wide screens, stacked on phones (the enemy's waters first)
     const ORG = MOB ? { me: [150, 150], foe: [0, 0] } : { me: [0, 0], foe: [124, -124] };
     const pts = [];
-    for (const [ox, oy] of Object.values(ORG)) pts.push([ox - 10, oy - 10, -6], [ox + 106, oy - 10, -6], [ox - 10, oy + 106, -6], [ox + 106, oy + 106, -6], [ox, oy, 30]);
+    for (const [ox, oy] of Object.values(ORG)) pts.push([ox - 10, oy - 10, -6], [ox + 106, oy - 10, -6], [ox - 10, oy + 106, -6], [ox + 106, oy + 106, -6], [ox - 8, oy - 8, 46]);
     const K = api.iso.frame(pts, 0.015, MOB ? 0.72 : 2.3);   // frame shaped like the two boards, so they fill the plate
     const { P, TOP, FRONT, SIDE, box, path } = K;
     const f2 = n => n.toFixed(2);
@@ -1840,7 +1844,7 @@ FIGS.push({
       s += `<g transform="${TOP(ox, oy - 7, 0.2)}">${[...COLS].map((ch, i) => `<text class="coord" x="${i * C + 5}" y="5" font-size="4" text-anchor="middle">${ch}</text>`).join('')}</g>`;
       s += `<g transform="${TOP(ox - 7, oy, 0.2)}">${Array.from({ length: N }, (_, i) => `<text class="coord" x="3.5" y="${i * C + 6.5}" font-size="4" text-anchor="middle">${i + 1}</text>`).join('')}</g>`;
       const [tx, ty] = P(ox - 8, oy - 8, 0);   // centred over the back corner of the plate, inside the frame
-      s += `<text id="${id}" class="title" x="${f2(tx)}" y="${f2(ty - 12)}">${title}</text>`;
+      s += `<text id="${id}" class="title" x="${f2(tx)}" y="${f2(ty - 24)}">${title}</text><g id="${id}-tally" data-x="${f2(tx)}" data-y="${f2(ty - 17)}"></g>`;
       return s;
     };
     svg += plate(...ORG.me, 'ВАШ ФЛОТ', 'sea-t-me') + plate(...ORG.foe, 'ВОРОЖІ ВОДИ', 'sea-t-foe');
@@ -1889,7 +1893,27 @@ FIGS.push({
                                 : `<g transform="${SIDE(ax + C - 2.6, ay + (mid + 2) * C - 5, 10.8)}"><path class="arch" d="M0 0 Q10 -14 20 0"/></g>`;
       return s;
     }
+    function drawTally(side) {
+      const g = $(`sea-t-${side}-tally`); if (!g) return;
+      const ships = side === 'foe' ? st.foe.ships : (st.phase === 'place' ? [...st.me.ships, ...st.queue.map(n => ({ cells: Array(n), sunk: false, kind: 'ship', ghost: true }))] : st.me.ships);
+      const order = ships.slice().sort((a, b) => (b.kind === 'bridge') - (a.kind === 'bridge') || b.cells.length - a.cells.length);
+      const U = 4.2, GAP = 3.2, widthOf = sh => sh.kind === 'bridge' ? 4 * U + 2 : sh.cells.length * U;
+      const total = order.reduce((w, sh) => w + widthOf(sh), 0) + GAP * (order.length - 1);
+      let x = +g.dataset.x - total / 2; const y = +g.dataset.y;
+      let out = '';
+      for (const sh of order) {
+        const w = widthOf(sh), cls = sh.sunk ? 'tgone' : sh.ghost ? 'tgone' : '';
+        let icon = '';
+        if (sh.kind === 'bridge') icon = `<path class="tk-br" d="M${f2(x)} ${f2(y)} L${f2(x + w)} ${f2(y)} M${f2(x + 2)} ${f2(y)} L${f2(x + 2)} ${f2(y + 3.5)} M${f2(x + w - 2)} ${f2(y)} L${f2(x + w - 2)} ${f2(y + 3.5)} M${f2(x + 4)} ${f2(y)} Q${f2(x + w / 2)} ${f2(y - 4.5)} ${f2(x + w - 4)} ${f2(y)}"/>`;
+        else for (let k = 0; k < sh.cells.length; k++) icon += `<rect class="tk" x="${f2(x + k * U)}" y="${f2(y - 1.6)}" width="${f2(U - 0.9)}" height="3.2" rx=".6"/>`;
+        if (sh.sunk) icon += `<path class="tcross" d="M${f2(x - 0.6)} ${f2(y + 2.6)} L${f2(x + w + 0.6)} ${f2(y - 2.6)}"/>`;
+        out += `<g class="${cls}">${icon}</g>`;
+        x += w + GAP;
+      }
+      g.innerHTML = out;
+    }
     function drawBoard(side) {
+      drawTally(side);
       const B = st[side], [ox, oy] = ORG[side], showAll = side === 'me';
       const items = [];
       B.ships.forEach(sh => {
@@ -1941,8 +1965,9 @@ FIGS.push({
                       : 'флот розставлено · «До бою!» або пробіл');
         return;
       }
-      const ro = st.over === 'win' ? 'перемога! · пробіл — нова гра' : st.over === 'lose' ? 'ворог переміг · пробіл — нова гра'
-        : `${st.turn === 'me' ? 'ваш постріл' : 'стріляє ворог…'} · знищити ще ${left('foe')}: ${afloat('foe')} · ваш флот ${left('me')}/10${st.bridgeHit ? ' · міст уражено' : ''}`;
+      const ro0 = st.over === 'win' ? 'перемога! · пробіл — нова гра' : st.over === 'lose' ? 'ворог переміг · пробіл — нова гра'
+        : `${st.turn === 'me' ? 'ваш постріл' : 'стріляє ворог…'} · знищити ще ${left('foe')}: ${afloat('foe')} · ваш флот ${left('me')}/10${st.bridgeDown ? ' · міст зруйновано' : st.bridgeHit ? ' · міст уражено' : ''}`;
+      const ro = ro0;
       api.readout(ro);
     }
     function say(s, ms = 1800) { msgEl.textContent = s; if (ms) api.after(ms, () => { if (msgEl.textContent === s) msgEl.textContent = ''; }); }
@@ -1999,14 +2024,19 @@ FIGS.push({
       const isBridge = st.foe.occ[r][c] === 0;
       if (res !== 'miss') boom('foe', c, r, res === 'sunk' || isBridge);
       drawBoard('foe'); drawCursor();
-      if (isBridge && !st.bridgeHit) {               // the bridge is hit: celebrate, then off to the disco
-        st.bridgeHit = true; sfx('bridge'); say('КРИМСЬКИЙ МІСТ УРАЖЕНО!', 0);
-        const disco = FIGS.some(f => f.id === 'disco');
-        busy = true;
-        api.after(2300, () => {
-          busy = false; say(disco ? '' : 'КРИМСЬКИЙ МІСТ УРАЖЕНО!');
-          if (disco) { window.__discoAutoplay = true; location.hash = '#disco'; }
-        });
+      const bridgeDown = isBridge && res === 'sunk';
+      if (isBridge && !bridgeDown) {                 // a span is hit: the bridge shows itself, but it is still standing
+        if (!st.bridgeHit) sfx('bridge');
+        st.bridgeHit = true;
+        say(`КРИМСЬКИЙ МІСТ УРАЖЕНО · ${st.foe.ships[0].hits} з ${st.foe.ships[0].cells.length}`, 2200);
+      } else if (bridgeDown) {                       // the last span falls: celebrate, then off to the disco
+        st.bridgeHit = true; st.bridgeDown = true; sfx('bridge');
+        const disco = FIGS.some(f => f.id === 'disco'), last = left('foe') === 0;
+        say(last ? '' : `КРИМСЬКИЙ МІСТ ЗРУЙНОВАНО! · ЛИШИЛОСЬ ${left('foe')}`, 0);
+        if (disco) {
+          busy = true;
+          api.after(last ? 3800 : 2400, () => { busy = false; msgEl.textContent = ''; window.__discoAutoplay = true; location.hash = '#disco'; });
+        }
       } else if (res === 'sunk' && left('foe') > 0) {
         const what = st.foe.ships[st.foe.occ[r][c]].kind === 'bridge' ? 'МІСТ ЗРУЙНОВАНО' : `${st.foe.ships[st.foe.occ[r][c]].cells.length}-ПАЛУБНИЙ ПОТОПЛЕНО`;
         say(`${what} · ЛИШИЛОСЬ ${left('foe')}`, 2600);
@@ -2015,25 +2045,35 @@ FIGS.push({
       else if (res === 'miss') { st.turn = 'cpu'; api.after(750, cpuTurn); }
       status();
     }
-    // computer: finish wounded ships along their line, otherwise hunt on a checkerboard
+    // computer: for every open cell, count how many placements of the ships still afloat could cover it.
+    // With a wounded ship it only counts placements through the wounded cells; it fires at the most likely cell.
     function cpuPick() {
-      const B = st.me, open = (c, r) => c >= 0 && c < N && r >= 0 && r < N && !B.shots[r][c];
-      const wounded = [];
+      const B = st.me, sizes = B.ships.filter(sh => !sh.sunk).map(sh => sh.cells.length);
+      const at = (c, r) => (c >= 0 && c < N && r >= 0 && r < N) ? B.shots[r][c] : 1;   // off-board counts as a miss
+      let wounded = [];
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (B.shots[r][c] === 2 && !B.ships[B.occ[r][c]].sunk) wounded.push([c, r]);
-      if (wounded.length) {
-        let cand = [];
-        if (wounded.length > 1) {
-          const hor = wounded[0][1] === wounded[1][1], line = wounded.map(p => hor ? p[0] : p[1]), lo = Math.min(...line) - 1, hi = Math.max(...line) + 1;
-          cand = hor ? [[lo, wounded[0][1]], [hi, wounded[0][1]]] : [[wounded[0][0], lo], [wounded[0][0], hi]];
-        } else { const [c, r] = wounded[0]; cand = [[c + 1, r], [c - 1, r], [c, r + 1], [c, r - 1]]; }
-        cand = cand.filter(([c, r]) => open(c, r));
-        if (cand.length) return cand[Math.floor(Math.random() * cand.length)];
+      if (wounded.length) {                          // keep only the wounded ship touching the first wounded cell
+        const seen = new Set([wounded[0].join()]), q = [wounded[0]];
+        while (q.length) { const [c, r] = q.pop(); for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1]]) { const k = [c + dc, r + dr]; if (wounded.some(w => w.join() === k.join()) && !seen.has(k.join())) { seen.add(k.join()); q.push(k); } } }
+        wounded = wounded.filter(w => seen.has(w.join()));
       }
-      const bigLeft = B.ships.some(s => !s.sunk && s.cells.length > 1);
-      let pool = [];
-      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (open(c, r) && (!bigLeft || (c + r) % 2 === 0)) pool.push([c, r]);
-      if (!pool.length) for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (open(c, r)) pool.push([c, r]);
-      return pool[Math.floor(Math.random() * pool.length)];
+      const score = Array.from({ length: N }, () => Array(N).fill(0));
+      for (const n of sizes) for (const hor of [true, false]) for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        const cells = Array.from({ length: n }, (_, k) => hor ? [c + k, r] : [c, r + k]);
+        if (cells.some(([x, y]) => at(x, y) === 1)) continue;                              // misses and the board edge block it
+        if (wounded.length) {
+          if (!wounded.every(w => cells.some(p => p[0] === w[0] && p[1] === w[1]))) continue;
+        } else if (cells.some(([x, y]) => at(x, y) === 2)) continue;
+        for (const [x, y] of cells) if (at(x, y) === 0) score[y][x] += 1;
+      }
+      let best = -1, pick = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        if (B.shots[r][c]) continue;
+        const v = score[r][c] + Math.random() * 0.5;                                       // break ties a little randomly
+        if (v > best) { best = v; pick = [c, r]; }
+      }
+      if (best <= 0.5) { const open = []; for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!B.shots[r][c]) open.push([c, r]); return open[Math.floor(Math.random() * open.length)]; }
+      return pick;
     }
     function cpuTurn() {
       if (st.over || st.turn !== 'cpu' || !stage.isConnected) return;
